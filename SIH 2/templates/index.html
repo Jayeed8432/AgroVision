@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Agricultural Dashboard</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+<style>
+  #map { height: 400px; }
+</style>
+</head>
+<body>
+<div class="container my-4">
+  <h2>Agriculture Monitoring Dashboard</h2>
+  <form id="uploadForm" class="mb-3">
+    <div class="mb-3">
+      <label for="sensorData" class="form-label">Sensor Data File</label>
+      <input type="file" class="form-control" id="sensorData" name="sensor_data" required />
+    </div>
+    <div class="mb-3">
+      <label for="remoteImage" class="form-label">Remote Sensing Image</label>
+      <input type="file" class="form-control" id="remoteImage" name="remote_image" required />
+    </div>
+    <button type="submit" class="btn btn-primary">Upload & Predict</button>
+  </form>
+
+  <div id="alertBanner" class="alert alert-danger d-none"></div>
+
+  <div id="map"></div>
+
+  <canvas id="ndviChart" height="150" class="my-4"></canvas>
+
+  <div id="soilSummary" class="my-3">
+    <h5>Soil Condition Summary</h5>
+    <p id="soilMoistureSummary">No data loaded</p>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+const map = L.map('map').setView([20.5937, 78.9629], 5);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+  attribution: '© OpenStreetMap contributors'
+}).addTo(map);
+
+const riskZone = L.circle([20.3, 78.0], {color: 'red', radius: 50000, fillOpacity: 0.3}).addTo(map)
+  .bindPopup('Predicted Risk Zone');
+
+const ctx = document.getElementById('ndviChart').getContext('2d');
+const ndviChart = new Chart(ctx, {
+  type: 'line',
+  data: {
+    labels: ['Day 1', 'Day 5', 'Day 10', 'Day 15', 'Day 20'],
+    datasets: [{
+      label: 'NDVI',
+      data: [0.6, 0.58, 0.55, 0.52, 0.5],
+      borderColor: 'green',
+      fill: false,
+      tension: 0.1
+    }]
+  },
+  options: { responsive: true, scales: {y: {min: 0, max: 1}} }
+});
+
+document.getElementById('uploadForm').addEventListener('submit', async function(e) {
+  e.preventDefault();
+  const sensorFile = document.getElementById('sensorData').files[0];
+  const imageFile = document.getElementById('remoteImage').files[0];
+
+  const formData = new FormData();
+  formData.append('sensor_data', sensorFile);
+  formData.append('remote_image', imageFile);
+
+  const response = await fetch('/api/upload-data', {method: 'POST', body: formData});
+  const data = await response.json();
+
+  const alertBanner = document.getElementById('alertBanner');
+  if (data.anomaly_alert) {
+    alertBanner.textContent = 'Anomaly detected! Immediate attention required.';
+    alertBanner.classList.remove('d-none');
+  } else {
+    alertBanner.classList.add('d-none');
+  }
+
+  document.getElementById('soilMoistureSummary').innerText = 'Soil moisture levels normal.';
+
+  // Update NDVI chart dynamically if desired
+  // ndviChart.data.datasets[0].data = data.ndvi_series || [data.ndvi];
+  // ndviChart.update();
+
+  // Update risk zone location or visualization if available
+});
+
+</script>
+</body>
+</html>
